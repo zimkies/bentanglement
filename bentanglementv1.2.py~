@@ -1,4 +1,10 @@
+<<<<<<< HEAD
+# Adding a comment on the master branch
 # Memory
+=======
+# Just adding an experimental comment
+# Memory"
+>>>>>>> experimental
 # http://inventwithpython.com
 # By Al Sweigart al@inventwithpython.com
 

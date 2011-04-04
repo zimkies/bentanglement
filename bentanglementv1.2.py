@@ -1,4 +1,5 @@
-# Memory
+# Just adding an experimental comment
+# Memory"
 # http://inventwithpython.com
 # By Al Sweigart al@inventwithpython.com
 

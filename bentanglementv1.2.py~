@@ -431,6 +431,7 @@ def main(gametype):
             # Handle any events.
             for event in pygame.event.get():
                 print event.type
+		sys.stdout.flush()
 		"""The pygame.event.get() function returns a list of pygame.Event objects of events that have happened since the last call to pygame.event.get(). This loop uses the same code to handle each event in this list."""
                 if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
                     """The QUIT event is created when the user tries to shut down the program by clicking the X in the top right corner, or by killing the program from the task manager or some other means."""

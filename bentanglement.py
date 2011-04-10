@@ -25,6 +25,8 @@ GAPSIZE = 10
 TILESIDEWIDTH = 30*2
 CENTERCOORD = (WINDOWWIDTH/2,WINDOWHEIGHT/2)
 BOARDSIDEWIDTH = 3
+ROTATIONS = 12
+ALTERNATES = 2
 
 DARKGRAY = (60, 60, 60)
 WHITE = (255, 255, 255)
@@ -245,11 +247,14 @@ class Score:
 		
 class Board:
 	""" A class to represent the board"""
-	def __init__(self):
+	def __init__(self, ai=lambda x: []):
 		self.board = []
 		self.score = Score()
 		self.gameover = False
 		self.winbox = Winbox()
+		self.ai = ai
+		self.current_tiles = []
+		self.alternate = 0
 		
 		# set up tiles:
 		size = BOARDSIDEWIDTH
@@ -287,7 +292,6 @@ class Board:
 	
 	def drawboard(self):
 		if (self.gameover ==True):
-			print self.score.score
 			self.winbox.draw()
 		self.score.draw()
 		for row in self.board:
@@ -323,6 +327,12 @@ class Board:
 				tile = None
 		
 		return neighbour, tile, length
+
+	def run_ai(self):
+		'''Runs the AI for the board'''
+		moves = self.ai(self)
+		for move in moves:
+			pygame.event.post(move)
 
 class Smartboard(Board):
 	
@@ -405,11 +415,11 @@ class Smartboard(Board):
 				else:
 					line.status = "UNUSED"
 				
-			tile.start = start
+			#tile.start = start
 		# Replace the original start value again:
 		tile.start = start
 				
-def main(gametype):
+def main(gametype, ai):
 	global MAINCLOCK, MAINSURF
 	
 	pygame.init()
@@ -424,17 +434,17 @@ def main(gametype):
 		mousex = 0
 		mousey = 0
 		pygame.display.set_caption('Bentanglement')
-		mainBoard = gametype()
+		mainBoard = gametype(ai)
 		tile = mainBoard.board[BOARDSIDEWIDTH][2*BOARDSIDEWIDTH]
 		beginning = True
 		gameended = False
 		restart = False
-		alternate = 0
+		mainBoard.alternate = 0
 		
-		current_tiles = [tile, tile]
+		mainBoard.current_tiles = [tile, tile]
 		background = pygame.image.load(BACKGROUND).convert()
 		MAINSURF.blit(background, (0,0))
-		
+		debugging = 1	
 		# Main game loop:
 		while True:
 			clicked = False
@@ -447,6 +457,7 @@ def main(gametype):
 			"""This is the main game loop, which constantly loops while the program is playing. In this loop, we display the board on the screen and also handle any input events from the player. clicked will store the whether or not the player has clicked the mouse (the location is stored in mousex and mousey). We reset the value to False each time the game loop loops."""
 			# Handle any events.
 			for event in pygame.event.get():
+				print event.type
 				sys.stdout.flush()
 				"""The pygame.event.get() function returns a list of pygame.Event objects of events that have happened since the last call to pygame.event.get(). This loop uses the same code to handle each event in this list."""
 				if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
@@ -464,55 +475,76 @@ def main(gametype):
 					mousex, mousey = event.pos
 					mousebutton = event.button
 					clicked = True
+					debugging = 1
 					"""When the MOUSEBUTTONUP is created, we store the location of the mouse click (which is stored as the pos attribute of the Event object) and set clicked to True."""
-			if ((gameended is False)):
-				# If Right-Clicked Mouse button to alternate tile
-				if ((clicked == True) and (mousebutton == MOUSECLICKS["RIGHTCLICK"])):
-					alternate += 1
-					alternate %= 2
-					tile = current_tiles[alternate]
-					mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
-					
-				elif (((clicked == True) and (mousebutton == MOUSECLICKS["LEFTCLICK"])) or (beginning == True)):
-					
-					# Mark the path as used
-					mainBoard.getNeighbour(tile, placeline="USED", beginning=beginning, collapse=False)
-					# Collapse all useless lines
-					neighbour = mainBoard.getNeighbour(tile, beginning=beginning, collapse=True)
-					mainBoard.score.update(neighbour[2])
-					# Check if the game has ended
-					if (hasWon(neighbour[1]) is True):
-						endGame(mainBoard)
-						gameended = True
-						
-					# Else update information
-					else:
-						neighbour = neighbour[0]
-						current_tiles = [generateTile(*neighbour), generateTile(*neighbour)]
-						current_tiles[0].start = neighbour[1]
-						current_tiles[1].start = neighbour[1]
-						tile = current_tiles[alternate]
+				if ((gameended is False) and (clicked == True)):
+					# If Right-Clicked Mouse button to alternate tile
+					if ((clicked == True) and (mousebutton == MOUSECLICKS["RIGHTCLICK"])):
+						mainBoard.alternate += 1
+						mainBoard.alternate %= 2
+						tile = mainBoard.current_tiles[mainBoard.alternate]
 						mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
-				elif ((clicked == True) and (mousebutton == MOUSECLICKS["WHEELUP"])):
-					tile.rotate(1)
-					mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
-				elif ((clicked == True) and (mousebutton == MOUSECLICKS["WHEELDOWN"])):
-					tile.rotate(-1)
-					mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
+						
+					elif (((clicked == True) and (mousebutton == MOUSECLICKS["LEFTCLICK"])) or (beginning == True)):
+						
+						# Mark the path as used
+						mainBoard.getNeighbour(tile, placeline="USED", beginning=beginning, collapse=False)
+						# Collapse all useless lines
+						neighbour = mainBoard.getNeighbour(tile, beginning=beginning, collapse=True)
+						mainBoard.score.update(neighbour[2])
+						# Check if the game has ended
+						if (hasWon(neighbour[1]) is True):
+							endGame(mainBoard)
+							print mainBoard.score.score
+							gameended = True
+							
+						# Else update information
+						else:
+							neighbour = neighbour[0]
+							mainBoard.current_tiles = [generateTile(*neighbour), generateTile(*neighbour)]
+							mainBoard.current_tiles[0].start = neighbour[1]
+							mainBoard.current_tiles[1].start = neighbour[1]
+							tile = mainBoard.current_tiles[mainBoard.alternate]
+							mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
+					elif ((clicked == True) and (mousebutton == MOUSECLICKS["WHEELUP"])):
+						tile.rotate(1)
+						mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
+					elif ((clicked == True) and (mousebutton == MOUSECLICKS["WHEELDOWN"])):
+						tile.rotate(-1)
+						mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
+						
+					# Set Parameters back to False
+					clicked, beginning  = False, False, 
+					if (debugging == 1):
+						board = mainBoard
+						positions = []
+						for alt in range(ALTERNATES):
+							board.alternate += 1
+							board.alternate %= 2		
+							tile1 = board.current_tiles[board.alternate]
+							for rot in range(ROTATIONS):
+								tile1.rotate(1)
+								neighbour1 = list(board.getNeighbour(tile1))
+								# Reduce incentive for terminal lines
+								if neighbour1[1] == None:
+									neighbour1[2] = 0
+								positions.append([neighbour1[2], alt, rot ])
+							
+						positions.sort(reverse=True)
+						length, alt, rot = positions[0]
+						print "position: ",  positions[0]
+						sys.stdout.flush()
+						commands = []
+						debugging = 0
 					
-				# Set Parameters back to False
-				clicked, beginning  = False, False, 
-
-		
 			# Redraw the screen and wait a clock tick.
 			pygame.display.update()
 			MAINCLOCK.tick(FPS)
 			"""A call to pygame.display.update() causes any drawing functions done to the MAINSURF pygame.Surface object to be drawn to the screen. Unlike other pygame.Surface object, the object stored in MAINSURF was the one returned by the pygame.display.set_mode() call, which is why it is the Surface object that is drawn to the screen when pygame.display.update() is called.
-			The call to MAINCLOCK.tick(FPS) will introduce a pause to the game so that the program doesn't run faster than 30 frames per second. (30 is the value we stored inside the FPS constant.) This is so that our program doesn't run too fast on very powerful computer."""
-			
+					The call to MAINCLOCK.tick(FPS) will introduce a pause to the game so that the program doesn't run faster than 30 frames per second. (30 is the value we stored inside the FPS constant.) This is so that our program doesn't run too fast on very powerful computer."""
+					
 			# Let the AI make a move
-			ai(mainBoard)
-
+			mainBoard.run_ai()
 			#Restart if the board has been marked to restart
 			if (restart is True):
 				del mainBoard
@@ -549,20 +581,55 @@ def isEndTile(tile):
 		return True
 	return False
 
-def hasWon(tile):
-	return isEndTile(tile)
-	
-def ai(board):
-	'''The ai thread which sleeps until it needs to make a move, and then calculates the next move'''
-	if (board.gameover is True):
-		pygame.event.post(pygame.event.Event(KEYUP, {'key': K_r}))
+def hasWon(tile): return isEndTile(tile)
+
+def moronic_ai(board):
+	if (board.gameover is True): return [pygame.event.Event(KEYUP, {'key': K_r})]
 	else:
-		pygame.event.post(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)}))
+		return [pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)})]
+
+def stupid_ai(board):
+	if (board.gameover is True):
+		time.sleep(5)
+		return [pygame.event.Event(KEYUP, {'key': K_r})]
+	else:
+		positions = []
+		for alt in range(ALTERNATES):
+			board.alternate += 1
+			board.alternate %= 2		
+			tile = board.current_tiles[board.alternate]
+			for rot in range(ROTATIONS):
+				tile.rotate(1)
+				neighbour = list(board.getNeighbour(tile))
+				# Reduce incentive for terminal lines
+				if neighbour[1] == None:
+					neighbour[2] = 0
+				positions.append([neighbour[2], alt, rot ])
 		
+		positions.sort(reverse=True)
+		length, alt, rot = positions[0]
+		print "position: ",  positions[0]
+		sys.stdout.flush()
+		commands = []
+		if (alt == 0):
+			commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["RIGHTCLICK"], 'pos': (0,0)})) 
+		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%ROTATIONS))
+		commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)}))
+		time.sleep(.5)
+		return commands	
+
+def human_ai(board):
+	return []
+	
+	
 
 if __name__ == '__main__':
+	gametype, ai = 1,0
+	if (len(sys.argv) >= 2):
+		ai = int(sys.argv[1])
 	GAMETYPE = {0: Board, 1: Smartboard}
-	type = 1
-	main(GAMETYPE[type])
+	AI = {0: human_ai, 1: moronic_ai, 2: stupid_ai}
+	main(GAMETYPE[gametype], ai=AI[ai]) 
 	"""This if statement is actually the first line of code that is run in our program (aside from the import statements and the constant variable assignments. __name__ is a special variable that is created for all Python programs implicitly. The value stored in this variable is the string '__main__', but only when the script is run by itself. If this script is imported by another script's import statement, then the value of __name__ will be the name of the file (if this script still has the name memory.py, then the __name__ variable will contain 'memory').
 	This is really handy if we ever want to use the functions that are in this program in another program. By having this if statement here, which then runs the main() function, we could have another program use "import memory" and make use of any of the functions we've already written. Or if you want to test individual functions by calling them from the interactive shell, you could call them without running the game program. This trick is really handy for code reuse."""
+

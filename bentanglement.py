@@ -57,6 +57,8 @@ TILECOLOUR = {"PATH": YELLOW, "EMPTY": WHITE, "START": PURPLE, "CURRENT": CYAN}
 LINECOLOUR = {"USED": RED, "UNUSED": GREEN, "INVISIBLE": PURPLE, "USELESS": YELLOW}
 
 
+####################### CLASSES ####################################
+
 class Winbox:
 	'''A box to display whether you have won or not'''
 	def __init__(self):
@@ -73,7 +75,10 @@ class Winbox:
 		self.scoreRect = scoreRect
 		self.score = score
 
-	
+	def draw(self):
+		# Blit the text
+		MAINSURF.blit(self.score, self.scoreRect)
+
 class Score:
 	
 	def __init__(self):
@@ -237,15 +242,7 @@ class Tile:
 		self.drawhexagon()
 		self.drawlines()
 
-def drawhexagon(center,sidesize=TILESIDEWIDTH, color=CYAN):
-	"""Draw a hexagon with center and size"""
-	v = TILESIDEWIDTH/2
-	h = v * 3**.5
-	pointlist = [(0,2*v), (-h, v), (-h,-v), (0, -2*v), (h, -v), (h,v)]
-	pointlist = map(lambda a: tuple(map(sum,zip(a,center))), pointlist)
-	pygame.draw.polygon(MAINSURF, color, pointlist, 0)
-	pygame.draw.aalines(MAINSURF, YELLOW, 0, pointlist)
-	
+
 class Board:
 	""" A class to represent the board"""
 	def __init__(self, ai=lambda x: []):
@@ -301,7 +298,7 @@ class Board:
 					tile.drawtile()
 					
 	def getNeighbour(self, tile, placeline="UNUSED", beginning=False):
-		'''If placeline is "UNUSED", simply follows the open pipe till its end. If placeline is "USED", it also 'uses' or lays the tiles. Also takes "INVISIBLE". 
+		'''DEPRECATED DOES NOT WORK If placeline is "UNUSED", simply follows the open pipe till its end. If placeline is "USED", it also 'uses' or lays the tiles. Also takes "INVISIBLE". 
 		If the neighbour is not valid (i.e. in the event of a win), return None'''
 		
 		#Cycle through the pipes till you get to the next available one
@@ -316,7 +313,7 @@ class Board:
 				tile.placeline(start, placeline)
 				tile.current = False
 
-			neighbour = getImmediateNeighbour(tile, end)
+			tile, start = getImmediateNeighbour(tile, end)
 			try:
 				tile = self.board[neighbour[0][0]][neighbour[0][1]]
 				tile.start = neighbour[1]
@@ -331,55 +328,84 @@ class Board:
 		for move in moves:
 			pygame.event.post(move)
 
+	def place_tile(self, tile):
+		self.board[tile.center[0]][ tile.center[1]] = tile
+
 class Smartboard(Board):
 	
 	def getNeighbour(self, tile, placeline="UNUSED", beginning=False, collapse=False, maxlength=float("infinity")):
 		'''Follows the open pipe starting from tile, all the way to its end. 
 		Changes the line to whatever form of placeline is listed.
-		If the neighbour is not valid (i.e. in the event of a win), return None. 
-		MAKE SURE THAT WHEN CALLING THIS FUNCTION YOU FIRST STORE THE VALUE Tile.start AND THEN CHANGE IT BACK AGAIN AFTER THE CALL.'''
+		If the neighbour is not valid (i.e. in the event of a win), return None. '''
 		
 		# Keep track of the starting point so we don't have an infinite loop
 		startingposition = (tile, tile.start)
+		start = tile.start
+		
 		#Cycle through the pipes till you get to the next available one
 		length = 0
 		while ((tile and (tile.type == "PATH")) or (beginning==True)):
-			if (collapse is True):
-				self.collapseTile(tile)
 			length += 1
 			beginning = False
-			start = tile.start
 			end = tile.get_end(start)
+			
+			# Collapse if necessary
+			if (collapse is True):
+				self.collapseTile(tile)
 			
 			# Change line Status
 			if (placeline!="UNUSED"):
 				tile.placeline(start, placeline)
 				tile.current = False
 			
+			tile, start = self.getImmediateNeighbour(tile, end)
 			
-			neighbour = getImmediateNeighbour(tile, end)
-			try:
-				tile = self.board[neighbour[0][0]][neighbour[0][1]]
-				tile.start = neighbour[1]
-				# Make sure we haven't returned to our original position. If we have, then act as if we have reached deadend. 
-				if (tile == startingposition[0]):
-					if (tile.start == startingposition[1]):
-						raise Exception
-			except:
-				tile = None
+			# Make sure we haven't returned to our original position. If so, return tile as None 
+			if (tile == startingposition[0]):
+				if (start == startingposition[1]):
+					tile = None
 	
 		# Position of tile, the tile object, and the distance to it
-		return neighbour, tile, length
+		return tile, start, length
 	
+	def getImmediateNeighbour(self, tile, endpoint):
+		'''Gets the immediate neighbour of a tile, starting from an endpoint. Returns the tile and the starting poisition'''
+	
+		# A POINTMAP MAPPING BORDERS OF HEXAGONS TO THEIR NEIGHBOURS
+		POINTMAP = {0: [(-1,-1), 7],
+			1: [(-1,-1), 6],
+			2: [(0,-2), 9],
+			3: [(0,-2), 8],
+			4: [(1,-1), 11],
+			5: [(1,-1), 10],
+			6: [(1,1), 1],
+			7: [(1,1), 0],
+			8: [(0,2), 3],
+			9: [(0,2), 2],
+			10: [(-1,1), 5],
+			11: [(-1,1), 4]}
+
+		neighbour = POINTMAP[endpoint][:] 
+		# adjust for center and update tile to its neighbour
+		neighbour[0] = tuple(map(sum,zip(tile.center,neighbour[0])))
+		
+		try:
+			tile = self.board[neighbour[0][0]][neighbour[0][1]]
+		except:
+			tile = None
+
+		start = neighbour[1]
+		return tile, start
+
+
 	def debugger(self):
 		# Get Start tile:
 		center = self.board[3][6]
 		start = -1
 		end = center.get_end(start)
-		neighbour = getImmediateNeighbour(center, end)
+		firsttile, start = self.getImmediateNeighbour(center, end)
 		
-		firsttile = self.board[neighbour[0][0]][neighbour[0][1]]
-		line = firsttile.get_line(neighbour[1])
+		line = firsttile.get_line(start)
 		if (line is not None):
 			if (line.status != "USED"):
 				import pdb
@@ -394,20 +420,18 @@ class Smartboard(Board):
 			#  Make sure this is not the actual path
 			if ((not line.in_line(start)) and (line.status != "USED")):
 				tile.start = line.start
-				npos, ntile, nlen = self.getNeighbour(tile)
+				ntile, nstart, nlen  = self.getNeighbour(tile)
 				if (isEndTile(ntile) is True):
 					startends = 1
 					# Make that path invisible, and attach length to this point
 					line.stopval = nlen-1
-					#self.getNeighbour(tile, placeline="INVISIBLE")
 				
 				tile.start = line.stop
-				npos, ntile, nlen = self.getNeighbour(tile)
+				ntile, nstart,  nlen = self.getNeighbour(tile)
 				if (isEndTile(ntile) is True):
 					# Make that path invisible, and attach length to this point
 					stopends = 1
 					line.stopval = nlen-1
-					#self.getNeighbour(tile, placeline="INVISIBLE")
 					
 				# If both ends terminate then make the entire line useless
 				if ((startends == 1) and (stopends == 1)):
@@ -431,40 +455,21 @@ class Smartboard(Board):
 		# Replace the original start value again:
 		tile.start = start
 
-def getImmediateNeighbour(tile, endpoint):
-	'''Gets the immediate neighbour of a tile, starting from an endpoint'''
-	
-	# A POINTMAP MAPPING BORDERS OF HEXAGONS TO THEIR NEIGHBOURS
-	POINTMAP = {0: [(-1,-1), 7],
-		1: [(-1,-1), 6],
-		2: [(0,-2), 9],
-		3: [(0,-2), 8],
-		4: [(1,-1), 11],
-		5: [(1,-1), 10],
-		6: [(1,1), 1],
-		7: [(1,1), 0],
-		8: [(0,2), 3],
-		9: [(0,2), 2],
-		10: [(-1,1), 5],
-		11: [(-1,1), 4]}
+class Neighbour():
+	'''A class to return neighbours in, used by getNeighbour()'''
 
-	neighbour = POINTMAP[endpoint][:] 
-	# adjust for center and update tile to its neighbour
-	neighbour[0] = tuple(map(sum,zip(tile.center,neighbour[0])))
-	return neighbour
-
+######################### GAME LOOP ###############################
 				
 def main(gametype, ai):
+	'''Our main function which sets up and runs the game'''
 	global MAINCLOCK, MAINSURF
 	
+	#'''Set up pgyame variables'''
 	pygame.init()
 	MAINCLOCK = pygame.time.Clock()
 	MAINSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
-	"""pygame.init() needs to be called before any of the other Pygame functions.
-	pygame.time.Clock() returns a pygame.Clock object. We will use this object's tick() method to ensure that the program runs at no faster than 30 frames per second (or whatever integer value we have in the FPS constant.)
-	pygame.display.set_mode() creates the window on the screen and returns a pygame.Surface object. Any drawing done on this Surface object with the pygame.draw.* functions will be displayed on the screen when we call pygame.display.update().
-	More information about pygame.display.set_mode() is at http://inventwithpython.com/chapter17.html#ThepygamedisplaysetmodeandpygamedisplaysetcaptionFunctions"""
 	
+	# Our Session mainloop. Everytime we restart the game, it comes back to here. 
 	while True:
 		mousex = 0
 		mousey = 0
@@ -481,8 +486,8 @@ def main(gametype, ai):
 		mainBoard.current_tiles = [tile, tile]
 		background = pygame.image.load(BACKGROUND).convert()
 		MAINSURF.blit(background, (0,0))
-		debugging = 1	
-		# Main game loop:
+		
+		# For each game we play loop through here:
 		while True:
 		
 			## Draw the board.
@@ -497,39 +502,38 @@ def main(gametype, ai):
 				mousebutton = -1
 				"""The pygame.event.get() function returns a list of pygame.Event objects of events that have happened since the last call to pygame.event.get(). This loop uses the same code to handle each event in this list."""
 				if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
-					"""The QUIT event is created when the user tries to shut down the program by clicking the X in the top right corner, or by killing the program from the task manager or some other means."""
 					pygame.quit()
 					sys.exit()
 					"""In order to terminate the program, we must call both pygame.quit() (to shut down the Pygame engine) and sys.exit() (to shut down the program.)"""
 				if (event.type == KEYUP and event.key == K_r):
 					"""Restart the game"""
 					restart = True
-				if event.type == MOUSEMOTION:
-					mousex, mousey = event.pos
-					"""A MOUSEMOTION event is created whenever the user moves the mouse over the window. The Event object created has a pos attribute that is a tuple of the two xy integer coordinates for where the mouse is located. We will save these values off to mousex and mousey."""
 				if event.type == MOUSEBUTTONUP:
+					# If the mouse is clicked, then store relevant data
 					mousex, mousey = event.pos
 					mousebutton = event.button
 					clicked = True
-					debugging = 1
-					"""When the MOUSEBUTTONUP is created, we store the location of the mouse click (which is stored as the pos attribute of the Event object) and set clicked to True."""
+
+				# Process the events
 				if ((gameended is False) and (clicked == True) or (beginning==True)):
+					
 					# If Right-Clicked Mouse button to alternate tile
 					if ((clicked == True) and (mousebutton == MOUSECLICKS["RIGHTCLICK"])):
 						mainBoard.alternate += 1
 						mainBoard.alternate %= 2
 						tile = mainBoard.current_tiles[mainBoard.alternate]
-						mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
+						mainBoard.place_tile(tile)
+					
+					# Left click means set the current tile as it is displayed		
+					elif ((mousebutton == MOUSECLICKS["LEFTCLICK"]) or (beginning == True)):
 						
-					elif (((clicked == True) and (mousebutton == MOUSECLICKS["LEFTCLICK"])) or (beginning == True)):
-						
-						# Mark the path as used
+						# Mark the path as used, and collapse all useless lines
 						mainBoard.getNeighbour(tile, placeline="USED", beginning=beginning, collapse=False)
-						# Collapse all useless lines
-						neighbour = mainBoard.getNeighbour(tile, beginning=beginning, collapse=True)
-						mainBoard.score.update(neighbour[2])
+						ntile, nstart, nlength = mainBoard.getNeighbour(tile, beginning=beginning, collapse=True)
+						mainBoard.score.update(nlength)
+						
 						# Check if the game has ended
-						if (hasWon(neighbour[1]) is True):
+						if (hasWon(ntile) is True):
 							endGame(mainBoard)
 							print mainBoard.score.score
 							gameended = True
@@ -537,37 +541,46 @@ def main(gametype, ai):
 							
 						# Else update information and generate new tiles
 						else:
-							neighbour = neighbour[0]
-							mainBoard.current_tiles = [generateTile(*neighbour), generateTile(*neighbour)]
-							mainBoard.current_tiles[0].start = neighbour[1]
-							mainBoard.current_tiles[1].start = neighbour[1]
+							tile = ntile
+							mainBoard.current_tiles = [generateTile(tile.center, nstart), generateTile(tile.center, nstart)]
+							mainBoard.current_tiles[0].start = nstart
+							mainBoard.current_tiles[1].start = nstart
 							tile = mainBoard.current_tiles[mainBoard.alternate]
-							mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
+							mainBoard.place_tile(tile)
+					
+					# If rotating tile:
 					elif ((clicked == True) and (mousebutton == MOUSECLICKS["WHEELUP"])):
 						tile.rotate(1)
-						mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
+						mainBoard.place_tile(tile)
 					elif ((clicked == True) and (mousebutton == MOUSECLICKS["WHEELDOWN"])):
 						tile.rotate(-1)
-						mainBoard.board[neighbour[0][0]][neighbour[0][1]] = tile
-						
+						mainBoard.place_tile(tile)						
 					# Set Parameters back to False
 					clicked, beginning  = False, False, 
 										
 			# Redraw the screen and wait a clock tick.
 			pygame.display.update()
 			MAINCLOCK.tick(FPS)
-			"""A call to pygame.display.update() causes any drawing functions done to the MAINSURF pygame.Surface object to be drawn to the screen. Unlike other pygame.Surface object, the object stored in MAINSURF was the one returned by the pygame.display.set_mode() call, which is why it is the Surface object that is drawn to the screen when pygame.display.update() is called.
-					The call to MAINCLOCK.tick(FPS) will introduce a pause to the game so that the program doesn't run faster than 30 frames per second. (30 is the value we stored inside the FPS constant.) This is so that our program doesn't run too fast on very powerful computer."""
 					
 			#Restart if the board has been marked to restart
 			if (restart is True):
 				del mainBoard
 				break
 
-			# Let the AI make a move
-			
+			# Let the AI make a move			
 			mainBoard.run_ai()
 
+############################# GLOBAL FUNCTIONS ##################################
+
+def drawhexagon(center,sidesize=TILESIDEWIDTH, color=CYAN):
+	"""Draw a hexagon with center and size"""
+	v = TILESIDEWIDTH/2
+	h = v * 3**.5
+	pointlist = [(0,2*v), (-h, v), (-h,-v), (0, -2*v), (h, -v), (h,v)]
+	pointlist = map(lambda a: tuple(map(sum,zip(a,center))), pointlist)
+	pygame.draw.polygon(MAINSURF, color, pointlist, 0)
+	pygame.draw.aalines(MAINSURF, YELLOW, 0, pointlist)
+	
 def generateCenterTile():
 	r = random.randint(0,11)
 	lines = [Line(-1, r)]
@@ -601,6 +614,8 @@ def isEndTile(tile):
 
 def hasWon(tile): return isEndTile(tile)
 
+####################################### AI FUNCTIONS #################################
+
 def moronic_ai(board):
 	if (board.gameover is True):
 		#time.sleep(1)	
@@ -623,15 +638,12 @@ def stupid_ai(board):
 			board.board[tile.center[0]][tile.center[1]] = tile
 			for rot in range(ROTATIONS):
 				tile.rotate(1)
-				start = tile.start
-				neighbour = board.getNeighbour(tile)
-				tile.start = start
+				ntile, nstart, nlength = board.getNeighbour(tile)
 				
 				# Reduce incentive for terminal lines
-				length = neighbour[2]
-				if (isEndTile(neighbour[1])):
-					 length = -1./length
-				positions.append([length, alt, rot ])
+				if (isEndTile(ntile)):
+					 nlength = -1./nlength
+				positions.append([nlength, alt, rot ])
 		
 		positions.sort(reverse=True)
 		length, alt, rot = positions[0]
@@ -654,6 +666,4 @@ if __name__ == '__main__':
 	GAMETYPE = {0: Board, 1: Smartboard}
 	AI = {0: human_ai, 1: moronic_ai, 2: stupid_ai}
 	main(GAMETYPE[gametype], ai=AI[ai]) 
-	"""This if statement is actually the first line of code that is run in our program (aside from the import statements and the constant variable assignments. __name__ is a special variable that is created for all Python programs implicitly. The value stored in this variable is the string '__main__', but only when the script is run by itself. If this script is imported by another script's import statement, then the value of __name__ will be the name of the file (if this script still has the name memory.py, then the __name__ variable will contain 'memory').
-	This is really handy if we ever want to use the functions that are in this program in another program. By having this if statement here, which then runs the main() function, we could have another program use "import memory" and make use of any of the functions we've already written. Or if you want to test individual functions by calling them from the interactive shell, you could call them without running the game program. This trick is really handy for code reuse."""
 

@@ -603,7 +603,7 @@ def moronic_ai(board):
 
 def stupid_ai(board):
 	if (board.gameover is True):
-		time.sleep(5)
+		#time.sleep()
 		return [pygame.event.Event(KEYUP, {'key': K_r})]
 	else:
 		positions = []
@@ -628,11 +628,7 @@ def stupid_ai(board):
 		
 		positions.sort(reverse=True)
 		length, alt, rot = positions[0]
-		print "position: ",  positions[0]
-		sys.stdout.flush()
 		commands = []
-		#return [pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)})]
-		
 		if (alt == 0):
 			commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["RIGHTCLICK"], 'pos': (0,0)})) 
 		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%ROTATIONS))

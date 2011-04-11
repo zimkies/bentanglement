@@ -50,6 +50,7 @@ LINES = 4
 OVAL = 5
 
 MOVEEVENT = USEREVENT
+STARTGAMEEVENT = USEREVENT + 1
 BACKGROUND = "redlight.jpg"
 LINECOLOUR = {"USED": RED, "UNUSED": GREEN, "INVISIBLE": PURPLE, "USELESS": YELLOW}#{"USED": RED, "UNUSED": GREEN, "INVISIBLE": PURPLE, "USELESS": BLACK}
 MOUSECLICKS= {"LEFTCLICK":1,
@@ -130,7 +131,14 @@ class Tile:
 				return l.stop
 			elif l.stop == start:
 				return l.start
-				
+
+	def get_line(self, point):
+		for l in self.lines:
+			if l.start == point:
+				return l
+			if l.stop == point:
+				return l
+
 	def placeline(self,start, status):
 		# Mark the line as used. 
 		for i,l in enumerate(self.lines[:]):
@@ -336,7 +344,7 @@ class Board:
 
 class Smartboard(Board):
 	
-	def getNeighbour(self, tile, placeline="UNUSED", beginning=False, collapse=False):
+	def getNeighbour(self, tile, placeline="UNUSED", beginning=False, collapse=False, maxlength=float("infinity")):
 		# If placeline is "UNUSED", simply follows the open pipe till its end. If placeline is 1, it also 'uses' or lays the tiles.
 		# If the neighbour is not valid (i.e. in the event of a win), return None
 		
@@ -344,7 +352,10 @@ class Smartboard(Board):
 		length = 0
 		# Keep track of the starting point so we don't have an infinite loop
 		startingposition = (tile, tile.start)
-
+		print tile
+		if tile:
+			print tile.type, beginning
+		sys.stdout.flush()
 		while (((tile is not None) and (tile.type == "PATH")) or (beginning==True)):
 			sys.stdout.flush()
 			if (collapse is True):
@@ -375,6 +386,26 @@ class Smartboard(Board):
 		# Position of tile, the tile object, and the distance to it
 		return neighbour, tile, length
 	
+	def debugger(self):
+		# Get Start tile:
+		center = self.board[3][6]
+		start = -1
+		end = center.get_end(start)
+		neighbour = POINTMAP[end][:]
+	
+		# adjust for center and update tile to its neighbour
+		neighbour[0] = tuple(map(sum,zip(center.center,neighbour[0])))
+		print neighbour
+		sys.stdout.flush()
+		firsttile = self.board[neighbour[0][0]][neighbour[0][1]]
+		line = firsttile.get_line(neighbour[1])
+		if (line is not None):
+			print line.status
+			sys.stdout.flush()
+			if (line.status != "USED"):
+				raise Exception("The line has been compromised")
+
+
 	def collapseTile(self, tile):
 		start = tile.start
 		for line in tile.lines:
@@ -441,6 +472,8 @@ def main(gametype, ai):
 		gameended = False
 		restart = False
 		mainBoard.alternate = 0
+		# Make sure the event loop runs before the ai
+		pygame.event.post(pygame.event.Event(STARTGAMEEVENT))
 		
 		mainBoard.current_tiles = [tile, tile]
 		background = pygame.image.load(BACKGROUND).convert()
@@ -477,7 +510,7 @@ def main(gametype, ai):
 					clicked = True
 					debugging = 1
 					"""When the MOUSEBUTTONUP is created, we store the location of the mouse click (which is stored as the pos attribute of the Event object) and set clicked to True."""
-				if ((gameended is False) and (clicked == True)):
+				if ((gameended is False) and (clicked == True) or (beginning==True)):
 					# If Right-Clicked Mouse button to alternate tile
 					if ((clicked == True) and (mousebutton == MOUSECLICKS["RIGHTCLICK"])):
 						mainBoard.alternate += 1
@@ -497,6 +530,7 @@ def main(gametype, ai):
 							endGame(mainBoard)
 							print mainBoard.score.score
 							gameended = True
+							mainBoard.debugger()
 							
 						# Else update information and generate new tiles
 						else:
@@ -522,12 +556,13 @@ def main(gametype, ai):
 			"""A call to pygame.display.update() causes any drawing functions done to the MAINSURF pygame.Surface object to be drawn to the screen. Unlike other pygame.Surface object, the object stored in MAINSURF was the one returned by the pygame.display.set_mode() call, which is why it is the Surface object that is drawn to the screen when pygame.display.update() is called.
 					The call to MAINCLOCK.tick(FPS) will introduce a pause to the game so that the program doesn't run faster than 30 frames per second. (30 is the value we stored inside the FPS constant.) This is so that our program doesn't run too fast on very powerful computer."""
 					
-			# Let the AI make a move
-			mainBoard.run_ai()
 			#Restart if the board has been marked to restart
 			if (restart is True):
 				del mainBoard
 				break
+
+			# Let the AI make a move
+			mainBoard.run_ai()
 
 def generateCenterTile():
 	r = random.randint(0,11)
@@ -563,39 +598,45 @@ def isEndTile(tile):
 def hasWon(tile): return isEndTile(tile)
 
 def moronic_ai(board):
-	if (board.gameover is True): return [pygame.event.Event(KEYUP, {'key': K_r})]
+	if (board.gameover is True):
+		#time.sleep(1)	
+		return [pygame.event.Event(KEYUP, {'key': K_r})]
 	else:
 		return [pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)})]
 
 def stupid_ai(board):
 	if (board.gameover is True):
-		time.sleep(5)
+		#time.sleep(1)
 		return [pygame.event.Event(KEYUP, {'key': K_r})]
 	else:
 		positions = []
 		for alt in range(ALTERNATES):
-			board.alternate += 1
-			board.alternate %= 2		
+			#board.alternate += 1
+			#board.alternate %= 2		
 			tile = board.current_tiles[board.alternate]
+			#board.board[tile.center[0]][tile.center[1]] = tile
 			for rot in range(ROTATIONS):
-				tile.rotate(1)
-				neighbour = list(board.getNeighbour(tile))
+				#tile.rotate(1)
+				neighbour = board.getNeighbour(tile)
 				# Reduce incentive for terminal lines
+				length = neighbour[2]
 				if neighbour[1] == None:
-					neighbour[2] = 0
-				positions.append([neighbour[2], alt, rot ])
+					 length = 0
+				positions.append([length, alt, rot ])
 		
 		positions.sort(reverse=True)
 		length, alt, rot = positions[0]
-		print "position: ",  positions[0]
+		#print "position: ",  positions[0]
 		sys.stdout.flush()
 		commands = []
-		if (alt == 0):
+		return [pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)})]
+		
+		'''if (alt == 0):
 			commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["RIGHTCLICK"], 'pos': (0,0)})) 
 		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%ROTATIONS))
 		commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)}))
 		time.sleep(.5)
-		return commands	
+		return commands	'''
 
 def human_ai(board):
 	return []

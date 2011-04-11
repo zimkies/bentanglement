@@ -85,6 +85,10 @@ class Line:
 		self.startval = startval
 		self.stopval = stopval
 	
+	def in_line(self, point):
+		'''Returns True if the point is the stop or start of the line'''
+		if ((point == self.start) or (point == self.stop)):
+			return True
 	def __str__(self):
 		return  str(self.start) + str(self.stop) + str( self.status)
 	def __repr__(self):
@@ -346,18 +350,13 @@ class Smartboard(Board):
 	
 	def getNeighbour(self, tile, placeline="UNUSED", beginning=False, collapse=False, maxlength=float("infinity")):
 		# If placeline is "UNUSED", simply follows the open pipe till its end. If placeline is 1, it also 'uses' or lays the tiles.
-		# If the neighbour is not valid (i.e. in the event of a win), return None
+		# If the neighbour is not valid (i.e. in the event of a win), return None. MAKE SURE THAT WHEN CALLING THIS FUNCTION YOU FIRST STORE THE VALUE Tile.start AND THEN CHANGE IT BACK AGAIN AFTER THE CALL.
 		
 		#Cycle through the pipes till you get to the next available one
 		length = 0
 		# Keep track of the starting point so we don't have an infinite loop
 		startingposition = (tile, tile.start)
-		print tile
-		if tile:
-			print tile.type, beginning
-		sys.stdout.flush()
-		while (((tile is not None) and (tile.type == "PATH")) or (beginning==True)):
-			sys.stdout.flush()
+		while ((tile and (tile.type == "PATH")) or (beginning==True)):
 			if (collapse is True):
 				self.collapseTile(tile)
 			length += 1
@@ -395,14 +394,12 @@ class Smartboard(Board):
 	
 		# adjust for center and update tile to its neighbour
 		neighbour[0] = tuple(map(sum,zip(center.center,neighbour[0])))
-		print neighbour
-		sys.stdout.flush()
 		firsttile = self.board[neighbour[0][0]][neighbour[0][1]]
 		line = firsttile.get_line(neighbour[1])
 		if (line is not None):
-			print line.status
-			sys.stdout.flush()
 			if (line.status != "USED"):
+				import pdb
+				pdb.set_trace()
 				raise Exception("The line has been compromised")
 
 
@@ -411,14 +408,14 @@ class Smartboard(Board):
 		for line in tile.lines:
 			startends, stopends = 0,0
 			#  Make sure this is not the actual path
-			if ((line.start != start) and (line.stop != start) and (line.status != "USED")):
+			if ((not line.in_line(start)) and (line.status != "USED")):
 				tile.start = line.start
 				npos, ntile, nlen = self.getNeighbour(tile)
 				if (isEndTile(ntile) is True):
 					startends = 1
 					# Make that path invisible, and attach length to this point
 					line.stopval = nlen-1
-					self.getNeighbour(tile, placeline="INVISIBLE")
+					#self.getNeighbour(tile, placeline="INVISIBLE")
 				
 				tile.start = line.stop
 				npos, ntile, nlen = self.getNeighbour(tile)
@@ -426,7 +423,7 @@ class Smartboard(Board):
 					# Make that path invisible, and attach length to this point
 					stopends = 1
 					line.stopval = nlen-1
-					self.getNeighbour(tile, placeline="INVISIBLE")
+					#self.getNeighbour(tile, placeline="INVISIBLE")
 					
 				# If both ends terminate then make the entire line useless
 				if ((startends == 1) and (stopends == 1)):
@@ -446,7 +443,6 @@ class Smartboard(Board):
 				# Otherwise make the line unused again
 				else:
 					line.status = "UNUSED"
-				
 			tile.start = start
 		# Replace the original start value again:
 		tile.start = start
@@ -562,6 +558,7 @@ def main(gametype, ai):
 				break
 
 			# Let the AI make a move
+			
 			mainBoard.run_ai()
 
 def generateCenterTile():
@@ -606,37 +603,42 @@ def moronic_ai(board):
 
 def stupid_ai(board):
 	if (board.gameover is True):
-		#time.sleep(1)
+		time.sleep(5)
 		return [pygame.event.Event(KEYUP, {'key': K_r})]
 	else:
 		positions = []
 		for alt in range(ALTERNATES):
-			#board.alternate += 1
-			#board.alternate %= 2		
+			pass
+			board.alternate += 1
+			board.alternate %= 2		
+			
 			tile = board.current_tiles[board.alternate]
-			#board.board[tile.center[0]][tile.center[1]] = tile
+			board.board[tile.center[0]][tile.center[1]] = tile
 			for rot in range(ROTATIONS):
-				#tile.rotate(1)
+				tile.rotate(1)
+				start = tile.start
 				neighbour = board.getNeighbour(tile)
+				tile.start = start
+				
 				# Reduce incentive for terminal lines
 				length = neighbour[2]
-				if neighbour[1] == None:
+				if (isEndTile(neighbour[1])):
 					 length = 0
 				positions.append([length, alt, rot ])
 		
 		positions.sort(reverse=True)
 		length, alt, rot = positions[0]
-		#print "position: ",  positions[0]
+		print "position: ",  positions[0]
 		sys.stdout.flush()
 		commands = []
-		return [pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)})]
+		#return [pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)})]
 		
-		'''if (alt == 0):
+		if (alt == 0):
 			commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["RIGHTCLICK"], 'pos': (0,0)})) 
 		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%ROTATIONS))
 		commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)}))
 		time.sleep(.5)
-		return commands	'''
+		return commands	
 
 def human_ai(board):
 	return []

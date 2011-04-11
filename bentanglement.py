@@ -1,11 +1,9 @@
-# Just adding an experimental comment
-# Memory"
-# http://inventwithpython.com
-# By Al Sweigart al@inventwithpython.com
+# Bentanglement
+# A version of entanglement http://entanglement.gopherwoodstudios.com/
+# which can solve itself with various ai
+# A good demonstration of the pygames module.
+# Written by Ben Kies "zimkies@gmail.com"
 
-"""
-HOW TO PLAY MEMORY:
-"""
 
 import random
 import time
@@ -14,6 +12,7 @@ import sys
 import numpy 
 from pygame.locals import *
 
+# SIZE CONSTANTS
 FPS = 30
 WINDOWWIDTH = 1000
 WINDOWHEIGHT = 700
@@ -28,6 +27,19 @@ BOARDSIDEWIDTH = 3
 ROTATIONS = 12
 ALTERNATES = 2
 
+# EVENT CONSTANTS
+MOVEEVENT = USEREVENT
+STARTGAMEEVENT = USEREVENT + 1
+MOUSECLICKS= {"LEFTCLICK":1,
+              "CENTERCLICK": 2,
+              "RIGHTCLICK": 3,
+              "WHEELUP":4,
+              "WHEELDOWN":5,
+              "LEFTEXTRACLICK":6,
+              "RIGHTEXTRACLICK":7}
+
+
+# COLOURS AND PICTURES
 DARKGRAY = (60, 60, 60)
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
@@ -38,64 +50,15 @@ ORANGE = (255, 128, 0)
 PURPLE = (180, 110, 180)
 CYAN = (204, 255, 255)
 BLACK = (0,0,0)
-
 BGCOLOR = DARKGRAY
 BOXCOLOR = WHITE
-
-
-DONUT = 1
-SQUARE = 2
-DIAMOND = 3
-LINES = 4
-OVAL = 5
-
-MOVEEVENT = USEREVENT
-STARTGAMEEVENT = USEREVENT + 1
 BACKGROUND = "redlight.jpg"
-LINECOLOUR = {"USED": RED, "UNUSED": GREEN, "INVISIBLE": PURPLE, "USELESS": YELLOW}#{"USED": RED, "UNUSED": GREEN, "INVISIBLE": PURPLE, "USELESS": BLACK}
-MOUSECLICKS= {"LEFTCLICK":1,
-              "CENTERCLICK": 2,
-              "RIGHTCLICK": 3,
-              "WHEELUP":4,
-              "WHEELDOWN":5,
-              "LEFTEXTRACLICK":6,
-              "RIGHTEXTRACLICK":7}
-
-POINTMAP = {0: [(-1,-1), 7],
-        1: [(-1,-1), 6],
-        2: [(0,-2), 9],
-        3: [(0,-2), 8],
-        4: [(1,-1), 11],
-        5: [(1,-1), 10],
-        6: [(1,1), 1],
-        7: [(1,1), 0],
-        8: [(0,2), 3],
-        9: [(0,2), 2],
-        10: [(-1,1), 5],
-        11: [(-1,1), 4]}
-
 TILECOLOUR = {"PATH": YELLOW, "EMPTY": WHITE, "START": PURPLE, "CURRENT": CYAN}
+LINECOLOUR = {"USED": RED, "UNUSED": GREEN, "INVISIBLE": PURPLE, "USELESS": YELLOW}
 
-class Line:
-    
-	def __init__(self, start=-1, stop=-1, status="UNUSED", startval=0, stopval=0):
-		self.start = start
-		self.stop = stop
-		self.status = status # UNUSED, USED, USELESS, INVISIBLE
-		self.startval = startval
-		self.stopval = stopval
-	
-	def in_line(self, point):
-		'''Returns True if the point is the stop or start of the line'''
-		if ((point == self.start) or (point == self.stop)):
-			return True
-	def __str__(self):
-		return  str(self.start) + str(self.stop) + str( self.status)
-	def __repr__(self):
-		return  str(self.start) + str(self.stop) + str( self.status)[0] + str(self.startval)+str(self.stopval)
-		
+
 class Winbox:
-	
+	'''A box to display whether you have won or not'''
 	def __init__(self):
 		# Render
 		txt = "GAME OVER"
@@ -110,112 +73,6 @@ class Winbox:
 		self.scoreRect = scoreRect
 		self.score = score
 
-	def draw(self):
-		# Blit the text
-		MAINSURF.blit(self.score, self.scoreRect)
-	
-
-class Tile:
-	"""A class to represent each tile. Note there are 3 types of tile: PATH, EMPTY, MIDDLE"""
-	def __init__(self, pos, lines=[], type="PATH"):
-		self.current = False
-		self.orientation = 0
-		self.lines = lines
-		self.type = type
-		self.center = pos
-		self.sidesize = TILESIDEWIDTH
-		self.coord = self.pos2coord()		  
-		self.exit = -1
-		self.start = -1
-		self.drawtile()
-		
-	def get_end(self, start):
-		for l in self.lines:
-			if l.start == start:
-				return l.stop
-			elif l.stop == start:
-				return l.start
-
-	def get_line(self, point):
-		for l in self.lines:
-			if l.start == point:
-				return l
-			if l.stop == point:
-				return l
-
-	def placeline(self,start, status):
-		# Mark the line as used. 
-		for i,l in enumerate(self.lines[:]):
-			if ((l.start == start) or (l.stop == start)):
-				l.status = status
-	
-	def drawhexagon(self):
-		type = self.type
-		if (self.current is True):
-			type = "CURRENT"
-		color = TILECOLOUR[type]
-		drawhexagon(self.coord, color=color)
-	
-	def rotate(self, times):
-		"""rotate the tile times times"""
-		for l in self.lines:
-			l.start = (l.start+times) %12
-			l.stop = (l.stop+times) %12
-	
-	def pos2coord(self):
-		v = TILESIDEWIDTH/2
-		h = v *3**.5
-		vpos, hpos = self.center
-		
-		# Find horizontal
-		x = h*(hpos - BOARDSIDEWIDTH*2)
-		y = 3*v*(vpos - BOARDSIDEWIDTH)
-		
-		coord = int(CENTERCOORD[0] + x), int(CENTERCOORD[1] + y)
-		self.coord = coord
-		return coord
-	
-	def drawlines(self):
-		v = TILESIDEWIDTH/2
-		h = v*3**.5
-		slope1 = numpy.array([3**.5, -1])/2.
-		slope2 = numpy.array([3**.5, 1])/2.
-		LINEPOSITIONS = {-1: numpy.array([0,0]),
-					0: numpy.array([0, -2*v])-(v*2/3.)*slope1,
-					1: numpy.array([0, -2*v])-(v*4./3.)*slope1,
-					2: numpy.array([-h, 0]) - numpy.array([0,v/3.]),
-					3: numpy.array([-h, 0]) + numpy.array([0,v/3.]),
-					4: numpy.array([0, 2*v])-(TILESIDEWIDTH*2./3.)*slope2,
-					5: numpy.array([0, 2*v])-(TILESIDEWIDTH/3.)*slope2,
-					6: numpy.array([0, 2*v])+(TILESIDEWIDTH/3.)*slope1,
-					7: numpy.array([0, 2*v])+(TILESIDEWIDTH*2/3.)*slope1,
-					8: numpy.array([h, 0]) + numpy.array([0,v/3.]),
-					9: numpy.array([h, 0]) - numpy.array([0,v/3.]),
-					10: numpy.array([0, -2*v])+(TILESIDEWIDTH*2/3.)*slope2,
-					11: numpy.array([0, -2*v])+(TILESIDEWIDTH/3.)*slope2}
-		
-		for line in self.lines:
-			color = LINECOLOUR[line.status]
-			start = self.coord + LINEPOSITIONS[line.start]
-			end = self.coord +  LINEPOSITIONS[line.stop]
-			pygame.draw.aaline(MAINSURF, color,start, end,1)
-			#pygame.draw.circle(MAINSURF, PURPLE, start, 1)	
-			#pygame.draw.circle(MAINSURF, RED, end, 1)	
-		
-		pygame.draw.circle(MAINSURF, BLACK, self.coord, 1)
-			
-	def drawtile(self):
-		self.drawhexagon()
-		self.drawlines()
-		
-def drawhexagon(center,sidesize=TILESIDEWIDTH, color=CYAN):
-	"""Draw a hexagon with center and size"""
-	v = TILESIDEWIDTH/2
-	h = v * 3**.5
-	pointlist = [(0,2*v), (-h, v), (-h,-v), (0, -2*v), (h, -v), (h,v)]
-	pointlist = map(lambda a: tuple(map(sum,zip(a,center))), pointlist)
-	pygame.draw.polygon(MAINSURF, color, pointlist, 0)
-	pygame.draw.aalines(MAINSURF, YELLOW, 0, pointlist)
 	
 class Score:
 	
@@ -256,7 +113,139 @@ class Score:
 		MAINSURF.blit(score, scoreRect)
 		MAINSURF.blit(segments, segmentsRect)
 		MAINSURF.blit(longest, longestRect)
+
+
+class Line:
+	'''A class representing a line within each hexagon'''    
+	def __init__(self, start=-1, stop=-1, status="UNUSED", startval=0, stopval=0):
+		'''Note each line has a status depending on how it should be represented'''
+		self.start = start
+		self.stop = stop
+		self.status = status # UNUSED, USED, USELESS, INVISIBLE
+		self.startval = startval
+		self.stopval = stopval
+	
+	def in_line(self, point):
+		'''Returns True if the point is the stop or start of the line'''
+		if ((point == self.start) or (point == self.stop)):
+			return True
+	def __str__(self):
+		return  str(self.start) + str(self.stop) + str( self.status)
+	def __repr__(self):
+		return  str(self.start) + str(self.stop) + str( self.status)[0] + str(self.startval)+str(self.stopval)
 		
+	def draw(self):
+		# Blit the text
+		MAINSURF.blit(self.score, self.scoreRect)
+	
+
+class Tile:
+	"""A class to represent each tile. Note there are 3 types of tile: PATH, EMPTY, MIDDLE"""
+	def __init__(self, pos, lines=[], type="PATH"):
+		self.current = False
+		self.orientation = 0
+		self.lines = lines
+		self.type = type
+		self.center = pos
+		self.sidesize = TILESIDEWIDTH
+		self.coord = self.pos2coord()		  
+		self.exit = -1
+		self.start = -1
+		self.drawtile()
+		
+	def get_end(self, start):
+		'''Follow the line starting from start to return the opposite point'''
+		for l in self.lines:
+			if l.start == start:
+				return l.stop
+			elif l.stop == start:
+				return l.start
+
+	def get_line(self, point):
+		'''Return the line which contains this point'''
+		for l in self.lines:
+			if l.start == point:
+				return l
+			if l.stop == point:
+				return l
+
+	def placeline(self,start, status):
+		'''Change the line containing the point start to status'''
+		# Mark the line as used. 
+		for i,l in enumerate(self.lines[:]):
+			if (l.in_line(start)):
+				l.status = status
+	
+	def drawhexagon(self):
+		'''A method referring to a global function which draws the hexagon'''
+		type = self.type
+		if (self.current is True):
+			type = "CURRENT"
+		color = TILECOLOUR[type]
+		drawhexagon(self.coord, color=color)
+	
+	def rotate(self, times):
+		"""rotate the tile times times"""
+		for l in self.lines:
+			l.start = (l.start+times) %12
+			l.stop = (l.stop+times) %12
+	
+	def pos2coord(self):
+		''' Converts position (row, column) to coordinates (x,y)'''
+		v = TILESIDEWIDTH/2
+		h = v *3**.5
+		vpos, hpos = self.center
+		
+		# Find horizontal
+		x = h*(hpos - BOARDSIDEWIDTH*2)
+		y = 3*v*(vpos - BOARDSIDEWIDTH)
+		
+		coord = int(CENTERCOORD[0] + x), int(CENTERCOORD[1] + y)
+		self.coord = coord
+		return coord
+	
+	def drawlines(self):
+		'''a method to draw the lines on each hexagon'''
+		v = TILESIDEWIDTH/2
+		h = v*3**.5
+		slope1 = numpy.array([3**.5, -1])/2.
+		slope2 = numpy.array([3**.5, 1])/2.
+		LINEPOSITIONS = {-1: numpy.array([0,0]),
+					0: numpy.array([0, -2*v])-(v*2/3.)*slope1,
+					1: numpy.array([0, -2*v])-(v*4./3.)*slope1,
+					2: numpy.array([-h, 0]) - numpy.array([0,v/3.]),
+					3: numpy.array([-h, 0]) + numpy.array([0,v/3.]),
+					4: numpy.array([0, 2*v])-(TILESIDEWIDTH*2./3.)*slope2,
+					5: numpy.array([0, 2*v])-(TILESIDEWIDTH/3.)*slope2,
+					6: numpy.array([0, 2*v])+(TILESIDEWIDTH/3.)*slope1,
+					7: numpy.array([0, 2*v])+(TILESIDEWIDTH*2/3.)*slope1,
+					8: numpy.array([h, 0]) + numpy.array([0,v/3.]),
+					9: numpy.array([h, 0]) - numpy.array([0,v/3.]),
+					10: numpy.array([0, -2*v])+(TILESIDEWIDTH*2/3.)*slope2,
+					11: numpy.array([0, -2*v])+(TILESIDEWIDTH/3.)*slope2}
+		
+		for line in self.lines:
+			color = LINECOLOUR[line.status]
+			start = self.coord + LINEPOSITIONS[line.start]
+			end = self.coord +  LINEPOSITIONS[line.stop]
+			pygame.draw.aaline(MAINSURF, color,start, end,1)
+		
+		pygame.draw.circle(MAINSURF, BLACK, self.coord, 1)
+			
+	def drawtile(self):
+		'''A method to draw everything associated with the tile'''
+		self.drawhexagon()
+		self.drawlines()
+
+def drawhexagon(center,sidesize=TILESIDEWIDTH, color=CYAN):
+	"""Draw a hexagon with center and size"""
+	v = TILESIDEWIDTH/2
+	h = v * 3**.5
+	pointlist = [(0,2*v), (-h, v), (-h,-v), (0, -2*v), (h, -v), (h,v)]
+	pointlist = map(lambda a: tuple(map(sum,zip(a,center))), pointlist)
+	pygame.draw.polygon(MAINSURF, color, pointlist, 0)
+	pygame.draw.aalines(MAINSURF, YELLOW, 0, pointlist)
+	
 class Board:
 	""" A class to represent the board"""
 	def __init__(self, ai=lambda x: []):
@@ -273,7 +262,6 @@ class Board:
 		maxwidth = 2*size + 1
 		board2 = []
 		for i in range(0,size):
-			
 			start = (size - i)
 			row = [None]* start
 			brow = [None]* start
@@ -303,18 +291,18 @@ class Board:
 		self.board.extend(board2)
 	
 	def drawboard(self):
+		''' a method to draw the board'''
 		if (self.gameover ==True):
 			self.winbox.draw()
-		self.score.draw()
+			self.score.draw() 
 		for row in self.board:
 			for tile in row:
 				if (tile is not None):
 					tile.drawtile()
 					
 	def getNeighbour(self, tile, placeline="UNUSED", beginning=False):
-		# If placeline is "UNUSED", simply follows the open pipe till its end. If placeline is "USED", it also 'uses' or lays the tiles.
-		# Also takes "INVISIBLE"
-		# If the neighbour is not valid (i.e. in the event of a win), return None
+		'''If placeline is "UNUSED", simply follows the open pipe till its end. If placeline is "USED", it also 'uses' or lays the tiles. Also takes "INVISIBLE". 
+		If the neighbour is not valid (i.e. in the event of a win), return None'''
 		
 		#Cycle through the pipes till you get to the next available one
 		length = 0
@@ -327,11 +315,8 @@ class Board:
 			if (placeline!="UNUSED"):
 				tile.placeline(start, placeline)
 				tile.current = False
-				
-			neighbour = POINTMAP[end][:]
-	
-			# adjust for center and update tile to its neighbour
-			neighbour[0] = tuple(map(sum,zip(tile.center,neighbour[0])))
+
+			neighbour = getImmediateNeighbour(tile, end)
 			try:
 				tile = self.board[neighbour[0][0]][neighbour[0][1]]
 				tile.start = neighbour[1]
@@ -349,13 +334,15 @@ class Board:
 class Smartboard(Board):
 	
 	def getNeighbour(self, tile, placeline="UNUSED", beginning=False, collapse=False, maxlength=float("infinity")):
-		# If placeline is "UNUSED", simply follows the open pipe till its end. If placeline is 1, it also 'uses' or lays the tiles.
-		# If the neighbour is not valid (i.e. in the event of a win), return None. MAKE SURE THAT WHEN CALLING THIS FUNCTION YOU FIRST STORE THE VALUE Tile.start AND THEN CHANGE IT BACK AGAIN AFTER THE CALL.
+		'''Follows the open pipe starting from tile, all the way to its end. 
+		Changes the line to whatever form of placeline is listed.
+		If the neighbour is not valid (i.e. in the event of a win), return None. 
+		MAKE SURE THAT WHEN CALLING THIS FUNCTION YOU FIRST STORE THE VALUE Tile.start AND THEN CHANGE IT BACK AGAIN AFTER THE CALL.'''
 		
-		#Cycle through the pipes till you get to the next available one
-		length = 0
 		# Keep track of the starting point so we don't have an infinite loop
 		startingposition = (tile, tile.start)
+		#Cycle through the pipes till you get to the next available one
+		length = 0
 		while ((tile and (tile.type == "PATH")) or (beginning==True)):
 			if (collapse is True):
 				self.collapseTile(tile)
@@ -364,14 +351,13 @@ class Smartboard(Board):
 			start = tile.start
 			end = tile.get_end(start)
 			
+			# Change line Status
 			if (placeline!="UNUSED"):
 				tile.placeline(start, placeline)
 				tile.current = False
 			
-			neighbour = POINTMAP[end][:]
-	
-			# adjust for center and update tile to its neighbour
-			neighbour[0] = tuple(map(sum,zip(tile.center,neighbour[0])))
+			
+			neighbour = getImmediateNeighbour(tile, end)
 			try:
 				tile = self.board[neighbour[0][0]][neighbour[0][1]]
 				tile.start = neighbour[1]
@@ -390,10 +376,8 @@ class Smartboard(Board):
 		center = self.board[3][6]
 		start = -1
 		end = center.get_end(start)
-		neighbour = POINTMAP[end][:]
-	
-		# adjust for center and update tile to its neighbour
-		neighbour[0] = tuple(map(sum,zip(center.center,neighbour[0])))
+		neighbour = getImmediateNeighbour(center, end)
+		
 		firsttile = self.board[neighbour[0][0]][neighbour[0][1]]
 		line = firsttile.get_line(neighbour[1])
 		if (line is not None):
@@ -446,6 +430,29 @@ class Smartboard(Board):
 			tile.start = start
 		# Replace the original start value again:
 		tile.start = start
+
+def getImmediateNeighbour(tile, endpoint):
+	'''Gets the immediate neighbour of a tile, starting from an endpoint'''
+	
+	# A POINTMAP MAPPING BORDERS OF HEXAGONS TO THEIR NEIGHBOURS
+	POINTMAP = {0: [(-1,-1), 7],
+		1: [(-1,-1), 6],
+		2: [(0,-2), 9],
+		3: [(0,-2), 8],
+		4: [(1,-1), 11],
+		5: [(1,-1), 10],
+		6: [(1,1), 1],
+		7: [(1,1), 0],
+		8: [(0,2), 3],
+		9: [(0,2), 2],
+		10: [(-1,1), 5],
+		11: [(-1,1), 4]}
+
+	neighbour = POINTMAP[endpoint][:] 
+	# adjust for center and update tile to its neighbour
+	neighbour[0] = tuple(map(sum,zip(tile.center,neighbour[0])))
+	return neighbour
+
 				
 def main(gametype, ai):
 	global MAINCLOCK, MAINSURF
@@ -623,7 +630,7 @@ def stupid_ai(board):
 				# Reduce incentive for terminal lines
 				length = neighbour[2]
 				if (isEndTile(neighbour[1])):
-					 length = 0
+					 length = -1./length
 				positions.append([length, alt, rot ])
 		
 		positions.sort(reverse=True)
@@ -633,7 +640,6 @@ def stupid_ai(board):
 			commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["RIGHTCLICK"], 'pos': (0,0)})) 
 		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%ROTATIONS))
 		commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)}))
-		time.sleep(.5)
 		return commands	
 
 def human_ai(board):

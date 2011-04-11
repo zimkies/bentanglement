@@ -455,8 +455,6 @@ class Smartboard(Board):
 		# Replace the original start value again:
 		tile.start = start
 
-class Neighbour():
-	'''A class to return neighbours in, used by getNeighbour()'''
 
 ######################### GAME LOOP ###############################
 				

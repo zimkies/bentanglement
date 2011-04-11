@@ -371,7 +371,8 @@ class Smartboard(Board):
 						raise Exception
 			except:
 				tile = None
-		
+	
+		# Position of tile, the tile object, and the distance to it
 		return neighbour, tile, length
 	
 	def collapseTile(self, tile):
@@ -415,7 +416,7 @@ class Smartboard(Board):
 				else:
 					line.status = "UNUSED"
 				
-			#tile.start = start
+			tile.start = start
 		# Replace the original start value again:
 		tile.start = start
 				
@@ -447,8 +448,6 @@ def main(gametype, ai):
 		debugging = 1	
 		# Main game loop:
 		while True:
-			clicked = False
-			mousebutton = -1
 		
 			## Draw the board.
 			MAINSURF.blit(background, (0,0))
@@ -456,9 +455,10 @@ def main(gametype, ai):
 	
 			"""This is the main game loop, which constantly loops while the program is playing. In this loop, we display the board on the screen and also handle any input events from the player. clicked will store the whether or not the player has clicked the mouse (the location is stored in mousex and mousey). We reset the value to False each time the game loop loops."""
 			# Handle any events.
-			for event in pygame.event.get():
-				print event.type
-				sys.stdout.flush()
+			events = pygame.event.get()
+			for event in events:
+				clicked = False
+				mousebutton = -1
 				"""The pygame.event.get() function returns a list of pygame.Event objects of events that have happened since the last call to pygame.event.get(). This loop uses the same code to handle each event in this list."""
 				if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
 					"""The QUIT event is created when the user tries to shut down the program by clicking the X in the top right corner, or by killing the program from the task manager or some other means."""
@@ -498,7 +498,7 @@ def main(gametype, ai):
 							print mainBoard.score.score
 							gameended = True
 							
-						# Else update information
+						# Else update information and generate new tiles
 						else:
 							neighbour = neighbour[0]
 							mainBoard.current_tiles = [generateTile(*neighbour), generateTile(*neighbour)]
@@ -515,28 +515,7 @@ def main(gametype, ai):
 						
 					# Set Parameters back to False
 					clicked, beginning  = False, False, 
-					if (debugging == 1):
-						board = mainBoard
-						positions = []
-						for alt in range(ALTERNATES):
-							board.alternate += 1
-							board.alternate %= 2		
-							tile1 = board.current_tiles[board.alternate]
-							for rot in range(ROTATIONS):
-								tile1.rotate(1)
-								neighbour1 = list(board.getNeighbour(tile1))
-								# Reduce incentive for terminal lines
-								if neighbour1[1] == None:
-									neighbour1[2] = 0
-								positions.append([neighbour1[2], alt, rot ])
-							
-						positions.sort(reverse=True)
-						length, alt, rot = positions[0]
-						print "position: ",  positions[0]
-						sys.stdout.flush()
-						commands = []
-						debugging = 0
-					
+										
 			# Redraw the screen and wait a clock tick.
 			pygame.display.update()
 			MAINCLOCK.tick(FPS)

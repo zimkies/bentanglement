@@ -291,7 +291,7 @@ class Board:
 		''' a method to draw the board'''
 		if (self.gameover ==True):
 			self.winbox.draw()
-			self.score.draw() 
+		self.score.draw() 
 		for row in self.board:
 			for tile in row:
 				if (tile is not None):

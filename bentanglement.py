@@ -24,7 +24,8 @@ GAPSIZE = 10
 TILESIDEWIDTH = 30*2
 CENTERCOORD = (WINDOWWIDTH/2,WINDOWHEIGHT/2)
 BOARDSIDEWIDTH = 3
-ROTATIONS = 12
+HEXAGON_POINTS = 12
+ROTATIONS = HEXAGON_POINTS/2
 ALTERNATES = 2
 
 # EVENT CONSTANTS
@@ -63,8 +64,8 @@ class Winbox:
 	'''A box to display whether you have won or not'''
 	def __init__(self):
 		# Render
-		txt = "GAME OVER"
-		font = pygame.font.Font(None, 22)
+		txt = "GAME OVER" 
+		font = pygame.font.Font(None, 22) 
 		score = font.render(txt, True, (255,255, 255), BGCOLOR)
 		
 		# Create a rectangle
@@ -192,8 +193,8 @@ class Tile:
 	def rotate(self, times):
 		"""rotate the tile times times"""
 		for l in self.lines:
-			l.start = (l.start+times) %12
-			l.stop = (l.stop+times) %12
+			l.start = (l.start+times*2) %12
+			l.stop = (l.stop+times*2) %12
 	
 	def pos2coord(self):
 		''' Converts position (row, column) to coordinates (x,y)'''
@@ -455,6 +456,49 @@ class Smartboard(Board):
 		# Replace the original start value again:
 		tile.start = start
 
+	def scouteTile(self, tile):
+		'''Follow all of the lines on this tile, and return information about how long they are, whether they end on an endtile, etc Currently does not work.'''
+		start = tile.start
+		for line in tile.lines:
+			startends, stopends = 0,0
+			#  Make sure this is not the actual path
+			if ((not line.in_line(start)) and (line.status != "USED")):
+				tile.start = line.start
+				ntile, nstart, nlen  = self.getNeighbour(tile)
+				if (isEndTile(ntile) is True):
+					startends = 1
+					# Make that path invisible, and attach length to this point
+					line.stopval = nlen-1
+				
+				tile.start = line.stop
+				ntile, nstart,  nlen = self.getNeighbour(tile)
+				if (isEndTile(ntile) is True):
+					# Make that path invisible, and attach length to this point
+					stopends = 1
+					line.stopval = nlen-1
+					
+				# If both ends terminate then make the entire line useless
+				if ((startends == 1) and (stopends == 1)):
+					tile.start = line.start
+					self.getNeighbour(tile, placeline="USELESS")
+					tile.start = line.stop
+					self.getNeighbour(tile, placeline="USELESS")
+					
+				elif (startends == 1):
+					tile.start = line.stop
+					self.getNeighbour(tile, placeline="INVISIBLE")
+				
+				elif (stopends == 1):
+					tile.start = line.start
+					self.getNeighbour(tile, placeline="INVISIBLE")
+					
+				# Otherwise make the line unused again
+				else:
+					line.status = "UNUSED"
+			tile.start = start
+		# Replace the original start value again:
+		tile.start = start
+
 
 ######################### GAME LOOP ###############################
 				
@@ -500,6 +544,7 @@ def main(gametype, ai):
 				mousebutton = -1
 				"""The pygame.event.get() function returns a list of pygame.Event objects of events that have happened since the last call to pygame.event.get(). This loop uses the same code to handle each event in this list."""
 				if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
+					pygame.display.quit()
 					pygame.quit()
 					sys.exit()
 					"""In order to terminate the program, we must call both pygame.quit() (to shut down the Pygame engine) and sys.exit() (to shut down the program.)"""
@@ -648,7 +693,44 @@ def stupid_ai(board):
 		commands = []
 		if (alt == 0):
 			commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["RIGHTCLICK"], 'pos': (0,0)})) 
-		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%ROTATIONS))
+		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%HEXAGON_POINTS))
+		commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)}))
+		return commands	
+
+def growbiggestline_ai(board):
+	if (board.gameover is True):
+		#time.sleep()
+		return [pygame.event.Event(KEYUP, {'key': K_r})]
+	else:
+		positions = []
+		terminal_positions = []
+		for alt in range(ALTERNATES):
+			pass
+			board.alternate += 1
+			board.alternate %= 2		
+			
+			tile = board.current_tiles[board.alternate]
+			board.board[tile.center[0]][tile.center[1]] = tile
+			for rot in range(ROTATIONS):
+				tile.rotate(1)
+				ntile, nstart, nlength = board.getNeighbour(tile)
+				
+				# Reduce incentive for terminal lines
+				if (isEndTile(ntile)):
+					 terminal_positions.append([nlength, alt, rot ]) 
+			 	else:
+					if (nlength >= 10):
+						nlength = -1./nlength
+					positions.append([nlength, alt, rot ])
+		
+		positions.sort()
+		terminal_positions.sort(reverse=True)
+		positions.extend(terminal_positions)
+		length, alt, rot = positions[0]
+		commands = []
+		if (alt == 0):
+			commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["RIGHTCLICK"], 'pos': (0,0)})) 
+		commands.extend([pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["WHEELUP"], 'pos': (0,0)})]*((rot+1)%HEXAGON_POINTS))
 		commands.append(pygame.event.Event(MOUSEBUTTONUP, {'button': MOUSECLICKS["LEFTCLICK"], 'pos': (0,0)}))
 		return commands	
 
@@ -662,6 +744,6 @@ if __name__ == '__main__':
 	if (len(sys.argv) >= 2):
 		ai = int(sys.argv[1])
 	GAMETYPE = {0: Board, 1: Smartboard}
-	AI = {0: human_ai, 1: moronic_ai, 2: stupid_ai}
+	AI = {0: human_ai, 1: moronic_ai, 2: stupid_ai, 3:growbiggestline_ai}
 	main(GAMETYPE[gametype], ai=AI[ai]) 
 

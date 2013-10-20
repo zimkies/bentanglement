@@ -1,7 +1,7 @@
 Bentanglement
 =============
 
-My clone of the entanglement game. I was inspired to write this game in an attempt to beat my brother Pule's high score.
+My clone of the [entanglement game](http://entanglement.gopherwoodstudios.com/). I was inspired to write this game in an attempt to beat my brother Pule's high score.
 
 Sadly, the AI is not yet good enough to do so. But I learned a lot from it. :)
 
